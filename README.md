@@ -4,6 +4,6 @@ Project Groundbreaker is the SLU Rocket Propulsion Lab's Spaceport America 2024 
 ## Required Libraries:
 - pygame
 - adafruit-circuitpython-adafruitio
-- adafruit_rfm9x
+- adafruit-circuitpython-rfm9x
 - RPi_I2C_driver
 - pygame_chart
