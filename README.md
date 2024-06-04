@@ -2,6 +2,7 @@
 Project Groundbreaker is the SLU Rocket Propulsion Lab's Spaceport America 2024 rocket. This code will run on the team's ground station (Raspberry Pi 5) to collect live telemetry and two camera views to display.
 
 ## Required Libraries:
+``` pip install "library name" ```
 - pygame
 - adafruit-circuitpython-adafruitio
 - adafruit-circuitpython-rfm9x
