@@ -126,6 +126,7 @@ def addGenericValues():
     acceleration.value = [0.0, -32.2, 0.0]
     rotation_vector.value = [0,0,0]
     gyro.value = [0.0, 0.0, 0.0]
+    rotation.value = [0.0, 0.0, 0.0]
     mag.value = [0.036, 0.048, 0.061]
     signal_strength.value = -90
     gps_coords.value = [38, -90]
@@ -235,6 +236,10 @@ def getTelemetry(packet, lastReceive):
     gyro.value = [packet['gyro_x'],
                   packet['gyro_y'],
                   packet['gyro_z'],]
+    
+    rotation.value = [packet['pitchX'],
+                      packet['yawY'],
+                      packet['rollZ'],]
 
     temperature.value = packet['temp']
     humidity.value = packet['humidity']
@@ -331,6 +336,7 @@ def guiloop():
 
         #if launch is detected start integrating AO
         if launched and time.time()- lastRotate >= 0.5:
+            '''
             deltaT = time.time()- lastRotate
             
             #convert degree changes to vector changes
@@ -353,8 +359,11 @@ def guiloop():
             #convert rotation vector to spherical coordinates
             gyroRotation[0] = np.arctan2(gyroVectorY[1],gyroVectorY[0]) * 180 / np.pi
             gyroRotation[1] = np.arctan2(gyroVectorY[2],np.sqrt(gyroVectorY[1]**2 + gyroVectorY[0]**2)) * 180 / np.pi
-                                    
-            temp=gyroRotation
+            '''                 
+            temp=rotation.value
+            #adjust for tenth of degree output of quaternion function
+            temp[0]*=10
+            temp[1]*=10
             #ensures temp values are positive
             if temp[0] < 0:
                 temp[0] = 360 + temp[0]
@@ -408,6 +417,7 @@ temperature = Data(0)
 
 acceleration = Data([0,0,0])
 gyro = Data([0,0,0])
+rotation = Data([0,0,0])
 mag = Data([0,0,0])
 humidity = Data(0)
 pressure = Data(0)

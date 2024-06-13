@@ -6,6 +6,7 @@ import adafruit_rfm9x
 import adafruit_lsm9ds1
 from adafruit_bme280 import basic as adafruit_bme280
 import adafruit_gps
+import math
 
 import serial
 import time
@@ -43,6 +44,95 @@ accel_timeBtwnSamp = 0.001
 gyro_sumX0 = gyro_sumY0 = gyro_sumZ0 = gyro_samps = gyro_lastSamp = 0
 gyro_timeBtwnSamp = .001
 
+pitchX = yawY = rollZ = 0
+
+def getQuatRotn(dx, dy, dz, gyroGain):
+
+    #Local Vectors
+    Quat = [0.0, 1.0, 0.0, 0.0, 0.0]
+    QuatDiff =[0, 0, 0, 0, 0]
+    Rotn1=[0, 0, 0, 0]
+    Rotn2=[0, 0, 0, 0]
+    Rotn3=[0, 0, 0, 0]
+
+    #Local rotation holders
+    prevRollZ = 0
+    quatRollZ = 0
+    fullRollZ = 0
+
+    #convert to radians
+    rotn2rad = gyroGain * (3.14159265359 / 180) / 1000000
+    dx *= rotn2rad
+    dy *= rotn2rad
+    dz *= rotn2rad
+
+    #Compute quaternion derivative
+    QuatDiff[1] = 0.5 * (-1 * dx * Quat[2] - dy * Quat[3] - dz * Quat[4])
+    QuatDiff[2] = 0.5 * (     dx * Quat[1] - dy * Quat[4] + dz * Quat[3])
+    QuatDiff[3] = 0.5 * (     dx * Quat[4] + dy * Quat[1] - dz * Quat[2])
+    QuatDiff[4] = 0.5 * (-1 * dx * Quat[3] + dy * Quat[2] + dz * Quat[1])
+
+    #Update the quaternion
+    Quat[1] += QuatDiff[1]
+    Quat[2] += QuatDiff[2]
+    Quat[3] += QuatDiff[3]
+    Quat[4] += QuatDiff[4]
+
+    #re-normalize
+    quatLen = pow( Quat[1]*Quat[1] + Quat[2]*Quat[2] + Quat[3]*Quat[3] + Quat[4]*Quat[4], -0.5)
+    Quat[1] *= quatLen
+    Quat[2] *= quatLen
+    Quat[3] *= quatLen
+    Quat[4] *= quatLen
+
+    #compute the components of the rotation matrix
+    a = Quat[1]
+    b = Quat[2]
+    c = Quat[3]
+    d = Quat[4]
+    a2 = a*a
+    b2 = b*b
+    c2 = c*c
+    d2 = d*d
+    ab = a*b
+    ac = a*c
+    ad = a*d
+    bc = b*c
+    bd = b*d
+    cd = c*d
+
+    #Compute rotation matrix
+    Rotn1[1] = a2 + b2 - c2 - d2
+    #Rotn1[2] = 2 * (bc - ad)
+    #Rotn1[3] = 2 * (bd + ac)
+    Rotn2[1] = 2 * (bc + ad)
+    #Rotn2[2] = a2 - b2 + c2 - d2
+    #Rotn2[3] = 2 * (cd - ab)
+    Rotn3[1] = 2 * (bd - ac)
+    Rotn3[2] = 2 * (cd + ab)
+    Rotn3[3] = a2 - b2 - c2 + d2
+
+    #compute 3D orientation
+    
+    pitchX = math.atan2(Rotn3[2], Rotn3[3])#this returns tenths of a degree, not whole degrees
+    yawY = math.asin(-1*Rotn3[1])#this returns tenths of a degree, not whole degrees
+
+    prevRollZ = quatRollZ
+    quatRollZ = math.atan2(Rotn2[1], Rotn1[1])
+    if quatRollZ - prevRollZ > 1800:
+        fullRollZ = fullRollZ - 1
+    elif quatRollZ - prevRollZ < -1800:
+        fullRollZ = fullRollZ + 1
+    rollZ = (fullRollZ*3600 + quatRollZ)*.1#this is in whole degrees since its usually MUCH bigger than pitch and yaw
+
+    #Compute angle off vertical
+    tanYaw = math.tan(yawY)
+    tanPitch = math.tan(pitchX)
+    hyp1 = tanYaw*tanYaw + tanPitch*tanPitch
+    hyp2 = pow(hyp1, 0.5)
+    offVert = math.atan(hyp2)#this returns tenths of a degree, not whole degrees
+
+    print(pitchX,yawY,rollZ)
 
 currentEvent = "Preflight"
 
@@ -110,6 +200,8 @@ while True:
         gyro_x = gyro_x-gyro_x0
         gyro_y = gyro_y-gyro_y0
         gyro_z = gyro_z-gyro_z0
+
+        getQuatRotn(-gyro_x*.001,gyro_z*.001, gyro_y*.001, 0.07)#update absolute rotation values
         
         temp = bme280.temperature * (9/5) + 32
         humidity = bme280.humidity
@@ -120,8 +212,8 @@ while True:
                 gps.altitude_m = 0
         if gps.speed_knots is None:
                 gps.speed_knots = 0
-        data = "{0:0.3f},{1:0.3f},{2:0.3f},{3:0.3f},{4:0.3f},{5:0.3f},{6:0.3f},{7:0.3f},{8:0.3f},{9:0.3f},{10:0.3f},{11:0.3f},{12:0.3f},{13:0.3f},{14:0.3f},{15:0.3f},{16:0.3f},{17:0.3f},{18:0.3f},{19:0.3f},{20:0.3f},\n".format(
+        data = "{0:0.3f},{1:0.3f},{2:0.3f},{3:0.3f},{4:0.3f},{5:0.3f},{6:0.3f},{7:0.3f},{8:0.3f},{9:0.3f},{10:0.3f},{11:0.3f},{12:0.3f},{13:0.3f},{14:0.3f},{15:0.3f},{16:0.3f},{17:0.3f},{18:0.3f},{19:0.3f},{20:0.3f},{21:0.3f},{22:0.3f},{23:0.3f}\n".format(
 		time.time()-startTime ,accel_x, accel_y, accel_z, mag_x, mag_y, mag_z, gyro_x, gyro_y, gyro_z, temp, humidity, pressure, altitude,
-                gps.fix_quality, gps.satellites, gps.latitude, gps.longitude, gps.altitude_m*3.28084, gps.speed_knots*1.688, currentEvent)
+                gps.fix_quality, gps.satellites, gps.latitude, gps.longitude, gps.altitude_m*3.28084, gps.speed_knots*1.688, currentEvent, pitchX, yawY, rollZ)
         
         rfm9x.send(data.encode('utf-8'))
