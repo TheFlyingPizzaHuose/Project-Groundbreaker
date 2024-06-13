@@ -47,7 +47,6 @@ print("Calibrating Sensors...")
 sampleTime = 3
 calibrationStart = time.time()
 while time.time() - calibrationStart < sampleTime:
-    print("helloooooo")
     #print(time.time()-calibrationStart)
     if time.time() - gyro_lastSamp > gyro_timeBtwnSamp:
         gyro_x,gyro_y,gyro_z = sensor.gyro
