@@ -38,17 +38,20 @@ init_accel_x,init_accel_y, init_accel_z = sensor.acceleration
 init_gyro_x,init_gyro_y,init_gyro_z = sensor.gyro
 
 accel_sumX0 = accel_sumY0 = accel_sumZ0 = accel_samps = accel_lastSamp = 0
-accel_timeBtwnSamp = 0.05
+accel_timeBtwnSamp = 0.001
 
 gyro_sumX0 = gyro_sumY0 = gyro_sumZ0 = gyro_samps = gyro_lastSamp = 0
-gyro_timeBtwnSamp = .05
+gyro_timeBtwnSamp = .001
+
+
+currentEvent = "Preflight"
 
 print("Calibrating Sensors...")
 sampleTime = 3
 calibrationStart = time.time()
 while time.time() - calibrationStart < sampleTime:
-    #print(time.time()-calibrationStart)
     if time.time() - gyro_lastSamp > gyro_timeBtwnSamp:
+        print(time.time() - gyro_lastSamp)
         gyro_x,gyro_y,gyro_z = sensor.gyro
         gyro_lastSamp = time.time()
 
@@ -65,6 +68,8 @@ while time.time() - calibrationStart < sampleTime:
         accel_sumY0 += accel_y
         accel_sumZ0 += accel_z
         accel_samps += 1
+
+
 gyro_x0 = (gyro_sumX0/gyro_samps)
 gyro_y0 = (gyro_sumY0/gyro_samps)
 gyro_z0 = (gyro_sumZ0/gyro_samps)
@@ -83,47 +88,40 @@ while True:
     if time.monotonic() - last_gps_update >= 1.0:
         gps.update()
         last_gps_update - time.monotonic()
-
-    if time.time()-lastCollected >= 0.01:
+    #Current events: 0=preflight, 1=liftoff, 2=apogeee
+    if currentEvent == 0:
+        timeBtwnSamples = 1.5
+    elif currentEvent == 1:
+        timeBtwnSamples = 0.001
+    
+    
+    if time.time()-lastCollected >= timeBtwnSamples:
         lastCollected = time.time()
         if not gps.has_fix:
             gps.latitude = 0
             gps.longitude = 0
             gps.satellites = 0
-        #ser.open()
-        #ser.flushOutput()
+
         # Read acceleration, magnetometer, gyroscope, temperature.
         accel_x,accel_y, accel_z = sensor.acceleration
-        #print(accel_x,accel_y,accel_z)
-        #accel_x = (accel_x-accel_x0) * 3.28084
-        #accel_y = (accel_y-accel_y0) * 3.28084
-        #accel_z = (accel_z-accel_z0) * 3.28084
-        #print(accel_x,accel_y,accel_z)
         mag_x, mag_y, mag_z = sensor.magnetic
         gyro_x, gyro_y, gyro_z = sensor.gyro
-        #print(gyro_x, gyro_x-init_gyro_x)
-        #print("="*40)
-        #print(gyro_x,gyro_y,gyro_z)
+        
         gyro_x = gyro_x-gyro_x0
         gyro_y = gyro_y-gyro_y0
         gyro_z = gyro_z-gyro_z0
-        #print(gyro_x,gyro_y,gyro_z)
+        
         temp = bme280.temperature * (9/5) + 32
         humidity = bme280.humidity
         pressure = bme280.pressure
         altitude = (bme280.altitude - initial_altitude) * 3.28084
 
-        # Delay for a second.
-        #time.sleep(1.0)
         if gps.altitude_m is None:
                 gps.altitude_m = 0
         if gps.speed_knots is None:
                 gps.speed_knots = 0
-        data = "{0:0.3f},{1:0.3f},{2:0.3f},{3:0.3f},{4:0.3f},{5:0.3f},{6:0.3f},{7:0.3f},{8:0.3f},{9:0.3f},{10:0.3f},{11:0.3f},{12:0.3f},{13:0.3f},{14:0.3f},{15:0.3f},{16:0.3f},{17:0.3f},{18:0.3f},{19:0.3f},\n".format(
+        data = "{0:0.3f},{1:0.3f},{2:0.3f},{3:0.3f},{4:0.3f},{5:0.3f},{6:0.3f},{7:0.3f},{8:0.3f},{9:0.3f},{10:0.3f},{11:0.3f},{12:0.3f},{13:0.3f},{14:0.3f},{15:0.3f},{16:0.3f},{17:0.3f},{18:0.3f},{19:0.3f},{20:0.3f},\n".format(
 		time.time()-startTime ,accel_x, accel_y, accel_z, mag_x, mag_y, mag_z, gyro_x, gyro_y, gyro_z, temp, humidity, pressure, altitude,
-                gps.fix_quality, gps.satellites, gps.latitude, gps.longitude, gps.altitude_m*3.28084, gps.speed_knots*1.688)
+                gps.fix_quality, gps.satellites, gps.latitude, gps.longitude, gps.altitude_m*3.28084, gps.speed_knots*1.688, currentEvent)
         
         rfm9x.send(data.encode('utf-8'))
-        #print(data)
-        #ser.write(data.encode('utf-8'))
-        #ser.close()
